@@ -1,0 +1,135 @@
+import { timingSafeEqual } from "node:crypto";
+import { createServer } from "node:http";
+import { dirname, extname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { normalizeEvent } from "./events.js";
+import { createFileEventStore, createMongoEventStore } from "./event-store.js";
+
+const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+const defaultEventFile = resolve(moduleDirectory, "../data/events.jsonl");
+const defaultStaticDirectory = resolve(moduleDirectory, "../dist");
+
+function send(response, status, body, origin = "") {
+  response.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    ...(origin ? { "access-control-allow-origin": origin, vary: "Origin" } : {})
+  });
+  response.end(JSON.stringify(body));
+}
+
+function tokenMatches(provided, expected) {
+  if (!provided || !expected) return false;
+  const left = Buffer.from(provided);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+const contentTypes = new Map([
+  [".css", "text/css; charset=utf-8"], [".html", "text/html; charset=utf-8"],
+  [".js", "text/javascript; charset=utf-8"], [".json", "application/json; charset=utf-8"],
+  [".svg", "image/svg+xml"], [".png", "image/png"], [".ico", "image/x-icon"]
+]);
+
+async function sendStatic(response, url, staticDirectory) {
+  const pathname = decodeURIComponent(new URL(url, "http://localhost").pathname);
+  const relativePath = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  const filePath = resolve(staticDirectory, relativePath);
+  if (!filePath.startsWith(`${resolve(staticDirectory)}/`) && filePath !== resolve(staticDirectory, "index.html")) return false;
+  try {
+    const body = await readFile(filePath);
+    response.writeHead(200, { "content-type": contentTypes.get(extname(filePath)) || "application/octet-stream" });
+    response.end(body);
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function readJson(request, limit = 64 * 1024) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > limit) throw new RangeError("Request body is too large");
+    chunks.push(chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+}
+
+export function createSignalDriftServer({
+  ingestKey = process.env.SIGNALDRIFT_INGEST_KEY,
+  eventFile = process.env.SIGNALDRIFT_EVENT_FILE || defaultEventFile,
+  allowedOrigin = process.env.SIGNALDRIFT_ALLOWED_ORIGIN || "",
+  mongoUri = process.env.MONGO_URL || process.env.MONGODB_URI,
+  databaseName = process.env.SIGNALDRIFT_DB_NAME || "signaldrift",
+  staticDirectory = process.env.SIGNALDRIFT_STATIC_DIR || defaultStaticDirectory,
+  eventStore = mongoUri
+    ? createMongoEventStore({ uri: mongoUri, databaseName })
+    : createFileEventStore(eventFile)
+} = {}) {
+  return createServer(async (request, response) => {
+    const origin = request.headers.origin === allowedOrigin ? allowedOrigin : "";
+
+    if (request.method === "OPTIONS" && request.url === "/api/events") {
+      response.writeHead(204, {
+        ...(origin ? { "access-control-allow-origin": origin, vary: "Origin" } : {}),
+        "access-control-allow-headers": "authorization, content-type",
+        "access-control-allow-methods": "POST, OPTIONS"
+      });
+      return response.end();
+    }
+
+    if (request.method === "GET" && request.url === "/health") {
+      return send(response, 200, { status: "ok", service: "signaldrift-ingestion" }, origin);
+    }
+
+    const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+
+    if (request.method === "GET" && request.url === "/api/events") {
+      if (!tokenMatches(token, ingestKey)) return send(response, 401, { error: "Unauthorized" }, origin);
+      try {
+        return send(response, 200, { events: await eventStore.list() }, origin);
+      } catch (error) {
+        console.error("SignalDrift event read failed", error);
+        return send(response, 500, { error: "Events could not be loaded" }, origin);
+      }
+    }
+
+    if (request.method === "GET" && !request.url.startsWith("/api/")) {
+      if (await sendStatic(response, request.url, staticDirectory)) return;
+      return send(response, 404, { error: "Not found" }, origin);
+    }
+
+    if (request.method !== "POST" || request.url !== "/api/events") {
+      return send(response, 404, { error: "Not found" }, origin);
+    }
+
+    if (!tokenMatches(token, ingestKey)) {
+      return send(response, 401, { error: "Unauthorized" }, origin);
+    }
+
+    try {
+      const event = normalizeEvent(await readJson(request));
+      await eventStore.save(event);
+      return send(response, 202, { accepted: true, eventId: event.id }, origin);
+    } catch (error) {
+      if (error instanceof SyntaxError || error instanceof TypeError) {
+        return send(response, 400, { error: error.message }, origin);
+      }
+      if (error instanceof RangeError) return send(response, 413, { error: error.message }, origin);
+      console.error("SignalDrift ingestion failed", error);
+      return send(response, 500, { error: "Event could not be stored" }, origin);
+    }
+  });
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  if (!process.env.SIGNALDRIFT_INGEST_KEY) {
+    console.error("SIGNALDRIFT_INGEST_KEY is required");
+    process.exit(1);
+  }
+  const port = Number(process.env.PORT || 8787);
+  createSignalDriftServer().listen(port, () => console.log(`SignalDrift ingestion listening on ${port}`));
+}

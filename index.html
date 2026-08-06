@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="SignalDrift product-to-market command center" />
+    <title>SignalDrift | Kreepy Productions</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Kreepy Productions</p>
+        <h1>SignalDrift</h1>
+        <p class="tagline">See what brought them. Learn what moved them.</p>
+      </div>
+      <div>
+        <button id="load-live" class="ghost" type="button">Load live data</button>
+        <button id="reset-demo" class="ghost danger" type="button">Reset demo data</button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="SignalDrift sections">
+      <button class="tab active" data-view="dashboard">Dashboard</button>
+      <button class="tab" data-view="campaigns">Campaign links</button>
+      <button class="tab" data-view="events">Event log</button>
+      <button class="tab" data-view="products">Products</button>
+    </nav>
+
+    <main>
+      <section id="dashboard" class="view active">
+        <div class="section-heading">
+          <div><p class="eyebrow">Automation 0.1</p><h2>Attribution dashboard</h2></div>
+          <button id="export-csv" class="ghost" type="button">Export events CSV</button>
+        </div>
+        <div id="metric-grid" class="metric-grid"></div>
+        <div class="panel-grid">
+          <article class="panel"><h3>Sources</h3><div id="source-table"></div></article>
+          <article class="panel"><h3>Conversion path</h3><div id="funnel"></div></article>
+        </div>
+        <article class="panel"><h3>Recent activity</h3><div id="recent-events"></div></article>
+      </section>
+
+      <section id="campaigns" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Build the trail</p><h2>Campaign link generator</h2></div></div>
+        <div class="panel-grid">
+          <form id="campaign-form" class="panel form-grid">
+            <label>Product<select id="campaign-product" required></select></label>
+            <label>Source<input id="campaign-source" required placeholder="facebook" /></label>
+            <label>Medium<input id="campaign-medium" required placeholder="social" /></label>
+            <label>Campaign<input id="campaign-name" required placeholder="pathseal-founder-launch" /></label>
+            <label class="full">Destination URL<input id="campaign-url" type="url" required /></label>
+            <button type="submit">Generate tracked link</button>
+          </form>
+          <article class="panel">
+            <h3>Generated link</h3>
+            <p id="campaign-empty" class="muted">Create a link to start tracking where PathSeal visitors come from.</p>
+            <div id="campaign-result" hidden>
+              <textarea id="generated-link" readonly rows="5"></textarea>
+              <button id="copy-link" type="button">Copy link</button>
+            </div>
+          </article>
+        </div>
+        <article class="panel"><h3>Saved campaigns</h3><div id="campaign-list"></div></article>
+      </section>
+
+      <section id="events" class="view">
+        <div class="section-heading"><div><p class="eyebrow">Test the pipeline</p><h2>Record an event</h2></div></div>
+        <div class="panel-grid">
+          <form id="event-form" class="panel form-grid">
+            <label>Product<select id="event-product" required></select></label>
+            <label>Event<select id="event-type" required><option value="visit">Visit</option><option value="signup">Signup</option><option value="upload">SVG upload</option><option value="checkout_started">Checkout started</option><option value="subscription">Subscription</option></select></label>
+            <label>Source<input id="event-source" placeholder="direct" /></label>
+            <label>Campaign<input id="event-campaign" placeholder="optional" /></label>
+            <button type="submit">Record event</button>
+          </form>
+          <article class="panel callout"><p class="eyebrow">Next automations</p><h3>Queued, not faked</h3><p>0.2: send a welcome email after signup.</p><p>0.3: follow up two days after an upload when no subscription exists.</p></article>
+        </div>
+      </section>
+
+      <section id="products" class="view">
+        <div class="section-heading"><div><p class="eyebrow">One structure at a time</p><h2>Products</h2></div></div>
+        <div id="product-list" class="product-grid"></div>
+      </section>
+    </main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

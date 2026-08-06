@@ -1,0 +1,19 @@
+{
+  "name": "signaldrift",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "vite --host 0.0.0.0",
+    "start:api": "node server/server.js",
+    "build": "vite build",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "vite": "^7.1.1"
+  },
+  "dependencies": {
+    "mongodb": "^6.21.0"
+  }
+}
