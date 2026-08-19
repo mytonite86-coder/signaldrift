@@ -1,0 +1,69 @@
+name: Portfolio health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portfolio-health
+  cancel-in-progress: false
+
+jobs:
+  public-production-checks:
+    name: Public production boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check portfolio
+        shell: bash
+        run: |
+          set -uo pipefail
+          failed=0
+
+          check() {
+            local name="$1"
+            local url="$2"
+            local expected="$3"
+            local needle="$4"
+            local attempts="$5"
+
+            for attempt in $(seq 1 "$attempts"); do
+              body_file=$(mktemp)
+              status=$(curl --location --silent --show-error --max-time 75 \
+                --output "$body_file" --write-out "%{http_code}" "$url") || status="000"
+
+              if [ "$status" = "$expected" ] && grep --fixed-strings --quiet "$needle" "$body_file"; then
+                echo "PASS: $name (HTTP $status, attempt $attempt)"
+                rm -f "$body_file"
+                return 0
+              fi
+
+              echo "Attempt $attempt/$attempts failed: $name (HTTP $status; expected $expected)"
+              rm -f "$body_file"
+              if [ "$attempt" -lt "$attempts" ]; then
+                sleep 10
+              fi
+            done
+
+            echo "::error title=Portfolio health failure::$name did not meet its public contract"
+            failed=1
+          }
+
+          check "SignalDrift Render dashboard" \
+            "https://signaldrift-yn1x.onrender.com/" 200 "SignalDrift" 3
+          check "SignalDrift Render health" \
+            "https://signaldrift-yn1x.onrender.com/health" 200 "signaldrift-ingestion" 3
+          check "SignalDrift authorization boundary" \
+            "https://signaldrift-yn1x.onrender.com/api/events" 401 "Unauthorized" 3
+          check "SignalDrift GitHub Pages" \
+            "https://mytonite86-coder.github.io/signaldrift/" 200 "Skald and Kreepy Productions" 1
+          check "PathSeal GitHub Pages" \
+            "https://mytonite86-coder.github.io/svg-path-closer/" 200 "Skald and Kreepy Productions" 1
+          check "MAB and PathSeal shared API" \
+            "https://mab-path-editor.onrender.com/api/health" 200 "healthy" 3
+
+          exit "$failed"
