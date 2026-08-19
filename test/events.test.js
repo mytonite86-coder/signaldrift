@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalizeEvent } from "../server/events.js";
+import { canonicalPathSealEventTypes, normalizeEvent } from "../server/events.js";
 import { createMongoEventStore } from "../server/event-store.js";
 import { createSignalDriftServer } from "../server/server.js";
 
@@ -69,4 +69,12 @@ test("ingestion requires a bearer key and persists accepted events", async t => 
   const payload = await live.json();
   assert.equal(payload.events.length, 1);
   assert.equal(payload.events[0].visitorId, "visitor-1");
+});
+
+
+test("accepts the complete canonical PathSeal vocabulary", () => {
+  for (const type of canonicalPathSealEventTypes) {
+    const event = normalizeEvent({ product: "pathseal", type });
+    assert.equal(event.type, type);
+  }
 });
