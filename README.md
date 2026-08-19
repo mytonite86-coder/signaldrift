@@ -1,6 +1,6 @@
 # SignalDrift
 
-SignalDrift is Kreepy Productions' reusable product-to-market operating system. It connects acquisition sources, product activity, campaigns, and conversions so launches can learn instead of guessing.
+SignalDrift is Skald and Kreepy Productions' reusable product-to-market operating system. It connects acquisition sources, product activity, campaigns, and conversions so launches can learn instead of guessing.
 
 ## v0.1 vertical slice
 
