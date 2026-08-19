@@ -1,11 +1,28 @@
 import { randomUUID } from "node:crypto";
 
-export const eventTypes = new Set([
+export const canonicalPathSealEventTypes = [
+  "landing_visit",
+  "upload_started",
+  "scan_completed",
+  "account_created",
+  "login_completed",
+  "repair_selected",
+  "checkout_started",
+  "payment_completed",
+  "validated_download_completed",
+  "error"
+];
+
+export const legacyEventTypes = [
   "visit",
   "signup",
   "upload",
-  "checkout_started",
   "subscription"
+];
+
+export const eventTypes = new Set([
+  ...canonicalPathSealEventTypes,
+  ...legacyEventTypes
 ]);
 
 function cleanString(value, maxLength = 200) {
