@@ -27,7 +27,7 @@ function renderDashboard() {
   renderMetrics();
   $("#source-table").innerHTML = tableOrEmpty(groupBySource(state.events), [{key:"source",label:"Source"},{key:"visits",label:"Visits"},{key:"uploads",label:"Uploads"},{key:"subscriptions",label:"Subs"}]);
   const funnel = funnelCounts(state.events); const max = Math.max(...funnel.map(x => x.count), 1);
-  $("#funnel").innerHTML = funnel.map(item => `<div class="bar-row"><span>${item.type.replace("_", " ")}</span><div class="bar"><i style="width:${(item.count/max)*100}%"></i></div><strong>${item.count}</strong></div>`).join("");
+  $("#funnel").innerHTML = funnel.map(item => `<div class="bar-row"><span>${item.label}</span><div class="bar"><i style="width:${(item.count/max)*100}%"></i></div><strong>${item.count}</strong></div>`).join("");
   const recent = [...state.events].sort((a,b) => b.timestamp.localeCompare(a.timestamp)).slice(0,8).map(e => ({...e, product: productName(e.product), timestamp: new Date(e.timestamp).toLocaleString()}));
   $("#recent-events").innerHTML = tableOrEmpty(recent, [{key:"timestamp",label:"Time"},{key:"product",label:"Product"},{key:"type",label:"Event"},{key:"source",label:"Source"},{key:"campaign",label:"Campaign"}]);
 }
