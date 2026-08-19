@@ -67,6 +67,6 @@ jobs:
           check "PathSeal GitHub Pages" \
             "https://mytonite86-coder.github.io/svg-path-closer/" 200 "Skald and Kreepy Productions" 1
           check "MAB and PathSeal shared API" \
-            "https://mab-path-editor.onrender.com/api/health" 200 "healthy" 3
+            "https://mab-path-editor.onrender.com/api/ready" 200 '"ready":true' 3
 
           exit "$failed"
