@@ -44,8 +44,20 @@ Send `POST /api/events` with `Authorization: Bearer <key>` and JSON containing `
 
 The bearer key belongs only in a trusted backend. A public browser app must send events through its own server; it must never expose the ingestion key in frontend code.
 
+## Owned tracking links
+
+SignalDrift can record a campaign click and then redirect to a server-approved HTTPS destination. Visitors cannot supply or override the destination. Configure an explicit hostname allowlist and a JSON object of named links:
+
+```text
+SIGNALDRIFT_REDIRECT_HOSTS="approved-product.example"
+SIGNALDRIFT_TRACKING_LINKS='{"pathseal-linkedin-01":{"destination":"https://approved-product.example/start?utm_source=linkedin&utm_medium=social&utm_campaign=campaign-01","product":"pathseal","source":"linkedin","medium":"social","campaign":"campaign-01"}}'
+```
+
+The public URL is `/go/pathseal-linkedin-01`. SignalDrift stores a `campaign_click` event before returning the redirect. Unknown links return `404`; a storage failure returns `503` without redirecting. Link configuration is deployment-only and contains no secrets.
+
 Keep the Atlas connection string in the deployment environment only. Reuse the existing cluster credentials, grant the application account access to the `signaldrift` database, and do not commit the URI.
 
 ## Integration boundary
 
 This version deliberately proves the interface and data model without pretending external automation exists. The ingestion boundary and shared-cluster database storage are implemented; PathSeal server-side wiring comes next. Email automations follow only after real identity, consent, and subscription state are available.
+

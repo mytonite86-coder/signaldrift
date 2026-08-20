@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { normalizeEvent } from "./events.js";
 import { createFileEventStore, createMongoEventStore } from "./event-store.js";
+import { createTrackingLinks, trackingSlug } from "./tracking-links.js";
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultEventFile = resolve(moduleDirectory, "../data/events.jsonl");
@@ -65,6 +66,10 @@ export function createSignalDriftServer({
   mongoUri = process.env.MONGO_URL || process.env.MONGODB_URI,
   databaseName = process.env.SIGNALDRIFT_DB_NAME || "signaldrift",
   staticDirectory = process.env.SIGNALDRIFT_STATIC_DIR || defaultStaticDirectory,
+  trackingLinks = createTrackingLinks({
+    configuration: process.env.SIGNALDRIFT_TRACKING_LINKS,
+    approvedHosts: process.env.SIGNALDRIFT_REDIRECT_HOSTS
+  }),
   eventStore = mongoUri
     ? createMongoEventStore({ uri: mongoUri, databaseName })
     : createFileEventStore(eventFile)
@@ -83,6 +88,34 @@ export function createSignalDriftServer({
 
     if (request.method === "GET" && request.url === "/health") {
       return send(response, 200, { status: "ok", service: "signaldrift-ingestion" }, origin);
+    }
+
+    if (request.method === "GET") {
+      const requestUrl = new URL(request.url, "http://localhost");
+      const slug = trackingSlug(requestUrl.pathname);
+      if (slug) {
+        const link = trackingLinks.get(slug);
+        if (!link) return send(response, 404, { error: "Tracking link not found" }, origin);
+        try {
+          const event = normalizeEvent({
+            product: link.product,
+            type: "campaign_click",
+            source: link.source,
+            medium: link.medium,
+            campaign: link.campaign
+          });
+          await eventStore.save(event);
+          response.writeHead(302, {
+            location: link.destination,
+            "cache-control": "no-store",
+            "referrer-policy": "no-referrer"
+          });
+          return response.end();
+        } catch (error) {
+          console.error("SignalDrift campaign click failed", error);
+          return send(response, 503, { error: "Tracking link is temporarily unavailable" }, origin);
+        }
+      }
     }
 
     const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -133,3 +166,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 8787);
   createSignalDriftServer().listen(port, () => console.log(`SignalDrift ingestion listening on ${port}`));
 }
+
