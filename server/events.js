@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 export const canonicalPathSealEventTypes = [
+  "campaign_click",
   "landing_visit",
   "upload_started",
   "scan_completed",
@@ -56,3 +57,4 @@ export function normalizeEvent(input, now = new Date()) {
     campaign: cleanString(input.campaign, 200)
   };
 }
+
