@@ -61,3 +61,10 @@ Keep the Atlas connection string in the deployment environment only. Reuse the e
 
 This version deliberately proves the interface and data model without pretending external automation exists. The ingestion boundary and shared-cluster database storage are implemented; PathSeal server-side wiring comes next. Email automations follow only after real identity, consent, and subscription state are available.
 
+## Path Seal campaign-generation proof
+
+`POST /api/campaign-drafts` accepts an authenticated campaign `objective` and returns one Facebook draft and one LinkedIn draft. The OpenAI API selects only approved server-owned Path Seal message components; Signal Drift validates those IDs and composes the final copy from the controlled product profile. Generated text remains a draft, requires human review, and cannot publish through this endpoint.
+
+Required server configuration: `OPENAI_API_KEY`, `SIGNALDRIFT_PUBLIC_URL`, and the existing `SIGNALDRIFT_INGEST_KEY`. `OPENAI_MODEL` is optional. The OpenAI key and operator key must remain server-side.
+
+Each draft receives an opaque owned tracking URL. The backing record contains product, channel, campaign, and approved destination only—no customer identity. MongoDB deployments use `signaldrift.campaign_links`; local development uses ignored `data/campaign-links.jsonl`.
