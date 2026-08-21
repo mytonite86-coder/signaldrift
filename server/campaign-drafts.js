@@ -47,6 +47,31 @@ export function createOpenAICampaignSelector({ apiKey, model = "gpt-5-mini", fet
   };
 }
 
+export function createRulesCampaignSelector() {
+  return async ({ objective }) => {
+    const words = objective.toLowerCase();
+    const angle = /cnc|machine|fabricat/.test(words)
+      ? "cnc_preparation"
+      : /review|approve|control|choose/.test(words)
+        ? "review_first"
+        : "preserve_intent";
+    return {
+      facebook: {
+        angle_id: angle,
+        claim_ids: ["scans_open_paths", "user_approved_repairs"],
+        cta_id: "try",
+        image_brief: "An SVG contour with one visible gap highlighted for review before the user approves closure."
+      },
+      linkedin: {
+        angle_id: angle === "review_first" ? "preserve_intent" : angle,
+        claim_ids: ["shows_questionable_gaps", "local_svg_processing"],
+        cta_id: "open",
+        image_brief: "A professional SVG review workspace showing a questionable contour gap and an explicit approval control."
+      }
+    };
+  };
+}
+
 function selected(map, id, label) {
   if (!Object.hasOwn(map, id)) throw new TypeError(`${label} is not approved`);
   return map[id];
@@ -84,7 +109,7 @@ function compose(profile, variant, trackingUrl, channel) {
   return `${profile.angles[variant.angle_id]} ${claims} ${identity}${price}\n\n${profile.ctas[variant.cta_id]}: ${trackingUrl}`;
 }
 
-export async function generatePathSealDrafts({ objective, selector, linkStore, publicBaseUrl, campaignId = `pathseal-${Date.now()}`, profile = pathSealProfile }) {
+export async function generatePathSealDrafts({ objective, selector, linkStore, publicBaseUrl, campaignId = `pathseal-${Date.now()}`, profile = pathSealProfile, generationMode = "rules" }) {
   if (typeof objective !== "string" || objective.trim().length < 10 || objective.length > 500) throw new TypeError("objective must be between 10 and 500 characters");
   if (!/^https:\/\//.test(publicBaseUrl || "")) throw new TypeError("SIGNALDRIFT_PUBLIC_URL must be an HTTPS URL");
   const selection = validateSelection(await selector({ objective: objective.trim(), profile }), profile);
@@ -110,5 +135,5 @@ export async function generatePathSealDrafts({ objective, selector, linkStore, p
       publishableByThisEndpoint: false
     };
   }
-  return { campaignId, productProfileId: profile.id, variants };
+  return { campaignId, productProfileId: profile.id, generationMode, aiGenerated: generationMode === "openai", variants };
 }

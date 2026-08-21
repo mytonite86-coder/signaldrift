@@ -7,7 +7,7 @@ import { normalizeEvent } from "./events.js";
 import { createFileEventStore, createMongoEventStore } from "./event-store.js";
 import { createTrackingLinks, trackingSlug } from "./tracking-links.js";
 import { createFileCampaignLinkStore, createMongoCampaignLinkStore } from "./campaign-link-store.js";
-import { createOpenAICampaignSelector, generatePathSealDrafts } from "./campaign-drafts.js";
+import { createOpenAICampaignSelector, createRulesCampaignSelector, generatePathSealDrafts } from "./campaign-drafts.js";
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultEventFile = resolve(moduleDirectory, "../data/events.jsonl");
@@ -77,9 +77,12 @@ export function createSignalDriftServer({
   campaignLinkStore = mongoUri
     ? createMongoCampaignLinkStore({ uri: mongoUri, databaseName })
     : createFileCampaignLinkStore(process.env.SIGNALDRIFT_CAMPAIGN_LINK_FILE || defaultCampaignLinkFile),
-  campaignSelector = process.env.OPENAI_API_KEY
-    ? createOpenAICampaignSelector({ apiKey: process.env.OPENAI_API_KEY, model: process.env.OPENAI_MODEL || "gpt-5-mini" })
-    : null,
+  generatorMode = process.env.SIGNALDRIFT_GENERATOR_MODE || "rules",
+  campaignSelector = generatorMode === "rules"
+    ? createRulesCampaignSelector()
+    : generatorMode === "openai" && process.env.OPENAI_API_KEY
+      ? createOpenAICampaignSelector({ apiKey: process.env.OPENAI_API_KEY, model: process.env.OPENAI_MODEL || "gpt-5-mini" })
+      : null,
   publicBaseUrl = process.env.SIGNALDRIFT_PUBLIC_URL || "",
   eventStore = mongoUri
     ? createMongoEventStore({ uri: mongoUri, databaseName })
@@ -139,7 +142,8 @@ export function createSignalDriftServer({
           objective: (await readJson(request, 16 * 1024)).objective,
           selector: campaignSelector,
           linkStore: campaignLinkStore,
-          publicBaseUrl
+          publicBaseUrl,
+          generationMode: generatorMode
         });
         return send(response, 201, drafts, origin);
       } catch (error) {

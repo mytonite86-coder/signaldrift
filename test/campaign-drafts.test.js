@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generatePathSealDrafts, validateSelection } from "../server/campaign-drafts.js";
+import { createRulesCampaignSelector, generatePathSealDrafts, validateSelection } from "../server/campaign-drafts.js";
 import { createSignalDriftServer } from "../server/server.js";
 
 const controlledSelection = {
@@ -30,6 +30,18 @@ test("controlled Path Seal profile composes distinct claims-controlled channel d
   assert.match(result.variants.linkedin.copy, /\$9\.99 per month/);
   assert.equal(records.every(record => !JSON.stringify(record).match(/email|userId|customer/i)), true);
   assert.equal(new URL(records[0].destination).searchParams.get("utm_campaign"), "pathseal-proof-01");
+  assert.equal(result.generationMode, "rules");
+  assert.equal(result.aiGenerated, false);
+});
+
+test("no-cost rules selector responds to the objective without network access", async () => {
+  const selector = createRulesCampaignSelector();
+  const cnc = await selector({ objective: "Reach CNC fabricators preparing SVG contours." });
+  const review = await selector({ objective: "Help users review and approve questionable gaps." });
+  assert.equal(cnc.facebook.angle_id, "cnc_preparation");
+  assert.equal(review.facebook.angle_id, "review_first");
+  assert.notEqual(review.facebook.cta_id, review.linkedin.cta_id);
+  assert.doesNotThrow(() => validateSelection(review));
 });
 
 test("controlled profile rejects a confused product claim that an unconstrained prompt could invent", () => {
@@ -76,5 +88,31 @@ test("draft API is operator-authenticated and can only return non-publishable dr
   const payload = await response.json();
   assert.equal(payload.variants.facebook.publishableByThisEndpoint, false);
   assert.equal(payload.variants.linkedin.humanReviewRequired, true);
+  assert.equal(payload.aiGenerated, false);
   assert.equal(links.size, 2);
+});
+
+test("server defaults to rules mode even when an OpenAI key exists", async t => {
+  const previous = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "not-called";
+  t.after(() => previous === undefined ? delete process.env.OPENAI_API_KEY : process.env.OPENAI_API_KEY = previous);
+  const links = [];
+  const server = createSignalDriftServer({
+    ingestKey: "operator-secret",
+    eventStore: { save: async () => {}, list: async () => [] },
+    campaignLinkStore: { create: async input => { const record = { id: `rules${links.length + 1}`, ...input }; links.push(record); return record; }, get: async () => null },
+    publicBaseUrl: "https://signaldrift.example"
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/campaign-drafts`, {
+    method: "POST",
+    headers: { authorization: "Bearer operator-secret", "content-type": "application/json" },
+    body: JSON.stringify({ objective: "Reach CNC users with review-first SVG repair." })
+  });
+  assert.equal(response.status, 201);
+  const payload = await response.json();
+  assert.equal(payload.generationMode, "rules");
+  assert.equal(payload.aiGenerated, false);
+  assert.equal(links.length, 2);
 });

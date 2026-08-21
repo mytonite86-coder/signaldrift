@@ -63,8 +63,8 @@ This version deliberately proves the interface and data model without pretending
 
 ## Path Seal campaign-generation proof
 
-`POST /api/campaign-drafts` accepts an authenticated campaign `objective` and returns one Facebook draft and one LinkedIn draft. The OpenAI API selects only approved server-owned Path Seal message components; Signal Drift validates those IDs and composes the final copy from the controlled product profile. Generated text remains a draft, requires human review, and cannot publish through this endpoint.
+`POST /api/campaign-drafts` accepts an authenticated campaign `objective` and returns one Facebook draft and one LinkedIn draft. By default, a no-cost deterministic selector chooses only approved server-owned Path Seal message components; Signal Drift validates those IDs and composes the final copy from the controlled product profile. Generated text remains a draft, requires human review, and cannot publish through this endpoint.
 
-Required server configuration: `OPENAI_API_KEY`, `SIGNALDRIFT_PUBLIC_URL`, and the existing `SIGNALDRIFT_INGEST_KEY`. `OPENAI_MODEL` is optional. The OpenAI key and operator key must remain server-side.
+Required server configuration: `SIGNALDRIFT_PUBLIC_URL` and the existing `SIGNALDRIFT_INGEST_KEY`. Paid model use is explicit opt-in: set `SIGNALDRIFT_GENERATOR_MODE=openai` and provide the server-only `OPENAI_API_KEY`; `OPENAI_MODEL` is optional. Merely configuring a key does not enable paid requests. Every response reports `generationMode` and `aiGenerated` so rules-based output cannot be mistaken for AI-generated output.
 
 Each draft receives an opaque owned tracking URL. The backing record contains product, channel, campaign, and approved destination only—no customer identity. MongoDB deployments use `signaldrift.campaign_links`; local development uses ignored `data/campaign-links.jsonl`.
