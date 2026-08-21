@@ -68,3 +68,9 @@ This version deliberately proves the interface and data model without pretending
 Required server configuration: `SIGNALDRIFT_PUBLIC_URL` and the existing `SIGNALDRIFT_INGEST_KEY`. Paid model use is explicit opt-in: set `SIGNALDRIFT_GENERATOR_MODE=openai` and provide the server-only `OPENAI_API_KEY`; `OPENAI_MODEL` is optional. Merely configuring a key does not enable paid requests. Every response reports `generationMode` and `aiGenerated` so rules-based output cannot be mistaken for AI-generated output.
 
 Each draft receives an opaque owned tracking URL. The backing record contains product, channel, campaign, and approved destination only—no customer identity. MongoDB deployments use `signaldrift.campaign_links`; local development uses ignored `data/campaign-links.jsonl`.
+
+### Campaign 01 review workflow
+
+The **Campaign 01 review** dashboard section is an operator-only proof surface. The access key is requested at action time and held in page memory only. Generating drafts creates two opaque tracking records with `pending_review` status; those URLs return `404` and record no click until the operator reviews both drafts, checks the approval confirmation, and activates the campaign. Approval changes exactly two matching records to `approved` and records `approvedAt`.
+
+Approval activates redirects and attribution only. The workflow contains no Facebook or LinkedIn connection, scheduling, or publishing capability. Draft copy is not treated as approved merely because it was generated.

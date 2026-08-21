@@ -2,6 +2,7 @@ import { buildCampaignUrl, funnelCounts, groupBySource, summarize, toCsv } from 
 import { loadState, resetState, saveState } from "./store.js";
 
 let state = loadState();
+let currentDraftCampaign = null;
 const $ = selector => document.querySelector(selector);
 const productName = id => state.products.find(product => product.id === id)?.name || id;
 
@@ -44,6 +45,17 @@ function renderProducts() {
 }
 
 function render() { renderProducts(); renderDashboard(); renderCampaigns(); }
+
+async function operatorRequest(url, options = {}) {
+  const operatorKey = $("#campaign-access-key").value;
+  if (!operatorKey) throw new Error("Access key is required");
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...options.headers, authorization: `Bearer ${operatorKey}`, "content-type": "application/json" }
+  });
+  if (response.status === 401) $("#campaign-access-key").value = "";
+  return response;
+}
 
 async function loadLiveEvents() {
   const key = window.prompt("Enter the SignalDrift access key. It is used for this request only.");
@@ -88,5 +100,58 @@ $("#export-csv").addEventListener("click", () => {
 
 $("#reset-demo").addEventListener("click", () => { if (confirm("Reset SignalDrift to its starter data?")) { state = resetState(); render(); toast("Demo data reset"); } });
 $("#load-live").addEventListener("click", loadLiveEvents);
+
+$("#draft-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  $("#draft-progress").hidden = false;
+  $("#draft-results").hidden = true;
+  try {
+    const response = await operatorRequest("/api/campaign-drafts", {
+      method: "POST",
+      body: JSON.stringify({ objective: $("#draft-objective").value })
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Drafts could not be generated");
+    currentDraftCampaign = payload;
+    $("#facebook-draft").value = payload.variants.facebook.copy;
+    $("#linkedin-draft").value = payload.variants.linkedin.copy;
+    $("#facebook-brief").textContent = `Suggested image: ${payload.variants.facebook.imageBrief}`;
+    $("#linkedin-brief").textContent = `Suggested image: ${payload.variants.linkedin.imageBrief}`;
+    $("#review-confirmed").checked = false;
+    $("#approve-campaign").disabled = true;
+    $("#approval-status").textContent = "Pending human review. No links are active.";
+    $("#draft-results").hidden = false;
+    toast("Drafts ready for review");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    $("#draft-progress").hidden = true;
+  }
+});
+
+$("#review-confirmed").addEventListener("change", event => {
+  $("#approve-campaign").disabled = !event.target.checked || !currentDraftCampaign;
+});
+
+$("#approve-campaign").addEventListener("click", async () => {
+  if (!currentDraftCampaign || !$("#review-confirmed").checked) return;
+  try {
+    const response = await operatorRequest(`/api/campaign-drafts/${encodeURIComponent(currentDraftCampaign.campaignId)}/approve`, { method: "POST", body: "{}" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Campaign could not be approved");
+    document.querySelectorAll(".draft-card .status-badge").forEach(badge => { badge.textContent = "Tracking active"; badge.classList.add("approved"); });
+    $("#approval-status").textContent = "Human review recorded. Two tracking links are active. Nothing was published.";
+    $("#approve-campaign").disabled = true;
+    $("#review-confirmed").disabled = true;
+    toast("Campaign 01 tracking approved");
+  } catch (error) {
+    toast(error.message);
+  }
+});
+
+document.querySelectorAll(".copy-draft").forEach(button => button.addEventListener("click", async () => {
+  await navigator.clipboard.writeText($(`#${button.dataset.copy}`).value);
+  toast("Draft copied");
+}));
 
 render();

@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
-import { dirname, extname, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { normalizeEvent } from "./events.js";
@@ -39,8 +39,10 @@ const contentTypes = new Map([
 async function sendStatic(response, url, staticDirectory) {
   const pathname = decodeURIComponent(new URL(url, "http://localhost").pathname);
   const relativePath = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
-  const filePath = resolve(staticDirectory, relativePath);
-  if (!filePath.startsWith(`${resolve(staticDirectory)}/`) && filePath !== resolve(staticDirectory, "index.html")) return false;
+  const staticRoot = resolve(staticDirectory);
+  const filePath = resolve(staticRoot, relativePath);
+  const containedPath = relative(staticRoot, filePath);
+  if (isAbsolute(containedPath) || containedPath === ".." || containedPath.startsWith(`..${sep}`)) return false;
   try {
     const body = await readFile(filePath);
     response.writeHead(200, { "content-type": contentTypes.get(extname(filePath)) || "application/octet-stream" });
@@ -108,8 +110,10 @@ export function createSignalDriftServer({
       const requestUrl = new URL(request.url, "http://localhost");
       const slug = trackingSlug(requestUrl.pathname);
       if (slug) {
-        const link = trackingLinks.get(slug) || await campaignLinkStore.get(slug);
+        const configuredLink = trackingLinks.get(slug);
+        const link = configuredLink || await campaignLinkStore.get(slug);
         if (!link) return send(response, 404, { error: "Tracking link not found" }, origin);
+        if (!configuredLink && link.status !== "approved") return send(response, 404, { error: "Tracking link not found" }, origin);
         try {
           const event = normalizeEvent({
             product: link.product,
@@ -150,6 +154,31 @@ export function createSignalDriftServer({
         if (error instanceof SyntaxError || error instanceof TypeError) return send(response, 400, { error: error.message }, origin);
         console.error("SignalDrift campaign generation failed", error);
         return send(response, 502, { error: "Campaign draft could not be generated" }, origin);
+      }
+    }
+
+    const approvalMatch = request.method === "POST" && request.url.match(/^\/api\/campaign-drafts\/([^/]+)\/approve$/);
+    if (approvalMatch) {
+      if (!tokenMatches(token, ingestKey)) return send(response, 401, { error: "Unauthorized" }, origin);
+      let campaignId;
+      try {
+        campaignId = decodeURIComponent(approvalMatch[1]);
+      } catch {
+        return send(response, 400, { error: "campaign ID is malformed" }, origin);
+      }
+      if (!/^pathseal-[a-z0-9-]{1,100}$/.test(campaignId)) return send(response, 400, { error: "campaign ID is malformed" }, origin);
+      try {
+        const activated = await campaignLinkStore.approveCampaign(campaignId);
+        if (activated !== 2) return send(response, 409, { error: "Campaign is missing drafts or was already approved" }, origin);
+        return send(response, 200, {
+          approved: true,
+          campaignId,
+          trackingLinksActivated: activated,
+          publishingPerformed: false
+        }, origin);
+      } catch (error) {
+        console.error("SignalDrift campaign approval failed", error);
+        return send(response, 500, { error: "Campaign could not be approved" }, origin);
       }
     }
 
