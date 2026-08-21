@@ -6,10 +6,13 @@ import { fileURLToPath } from "node:url";
 import { normalizeEvent } from "./events.js";
 import { createFileEventStore, createMongoEventStore } from "./event-store.js";
 import { createTrackingLinks, trackingSlug } from "./tracking-links.js";
+import { createFileCampaignLinkStore, createMongoCampaignLinkStore } from "./campaign-link-store.js";
+import { createOpenAICampaignSelector, createRulesCampaignSelector, generatePathSealDrafts } from "./campaign-drafts.js";
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultEventFile = resolve(moduleDirectory, "../data/events.jsonl");
 const defaultStaticDirectory = resolve(moduleDirectory, "../dist");
+const defaultCampaignLinkFile = resolve(moduleDirectory, "../data/campaign-links.jsonl");
 
 function send(response, status, body, origin = "") {
   response.writeHead(status, {
@@ -18,6 +21,7 @@ function send(response, status, body, origin = "") {
   });
   response.end(JSON.stringify(body));
 }
+
 
 function tokenMatches(provided, expected) {
   if (!provided || !expected) return false;
@@ -70,6 +74,16 @@ export function createSignalDriftServer({
     configuration: process.env.SIGNALDRIFT_TRACKING_LINKS,
     approvedHosts: process.env.SIGNALDRIFT_REDIRECT_HOSTS
   }),
+  campaignLinkStore = mongoUri
+    ? createMongoCampaignLinkStore({ uri: mongoUri, databaseName })
+    : createFileCampaignLinkStore(process.env.SIGNALDRIFT_CAMPAIGN_LINK_FILE || defaultCampaignLinkFile),
+  generatorMode = process.env.SIGNALDRIFT_GENERATOR_MODE || "rules",
+  campaignSelector = generatorMode === "rules"
+    ? createRulesCampaignSelector()
+    : generatorMode === "openai" && process.env.OPENAI_API_KEY
+      ? createOpenAICampaignSelector({ apiKey: process.env.OPENAI_API_KEY, model: process.env.OPENAI_MODEL || "gpt-5-mini" })
+      : null,
+  publicBaseUrl = process.env.SIGNALDRIFT_PUBLIC_URL || "",
   eventStore = mongoUri
     ? createMongoEventStore({ uri: mongoUri, databaseName })
     : createFileEventStore(eventFile)
@@ -94,7 +108,7 @@ export function createSignalDriftServer({
       const requestUrl = new URL(request.url, "http://localhost");
       const slug = trackingSlug(requestUrl.pathname);
       if (slug) {
-        const link = trackingLinks.get(slug);
+        const link = trackingLinks.get(slug) || await campaignLinkStore.get(slug);
         if (!link) return send(response, 404, { error: "Tracking link not found" }, origin);
         try {
           const event = normalizeEvent({
@@ -119,6 +133,25 @@ export function createSignalDriftServer({
     }
 
     const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+
+    if (request.method === "POST" && request.url === "/api/campaign-drafts") {
+      if (!tokenMatches(token, ingestKey)) return send(response, 401, { error: "Unauthorized" }, origin);
+      if (!campaignSelector) return send(response, 503, { error: "Campaign generation is not configured" }, origin);
+      try {
+        const drafts = await generatePathSealDrafts({
+          objective: (await readJson(request, 16 * 1024)).objective,
+          selector: campaignSelector,
+          linkStore: campaignLinkStore,
+          publicBaseUrl,
+          generationMode: generatorMode
+        });
+        return send(response, 201, drafts, origin);
+      } catch (error) {
+        if (error instanceof SyntaxError || error instanceof TypeError) return send(response, 400, { error: error.message }, origin);
+        console.error("SignalDrift campaign generation failed", error);
+        return send(response, 502, { error: "Campaign draft could not be generated" }, origin);
+      }
+    }
 
     if (request.method === "GET" && request.url === "/api/events") {
       if (!tokenMatches(token, ingestKey)) return send(response, 401, { error: "Unauthorized" }, origin);
@@ -166,4 +199,3 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 8787);
   createSignalDriftServer().listen(port, () => console.log(`SignalDrift ingestion listening on ${port}`));
 }
-
