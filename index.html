@@ -23,6 +23,7 @@
     <nav class="tabs" aria-label="SignalDrift sections">
       <button class="tab active" data-view="dashboard">Dashboard</button>
       <button class="tab" data-view="campaigns">Campaign links</button>
+      <button class="tab" data-view="campaign-studio">Campaign 01 review</button>
       <button class="tab" data-view="events">Event log</button>
       <button class="tab" data-view="products">Products</button>
     </nav>
@@ -62,6 +63,61 @@
           </article>
         </div>
         <article class="panel"><h3>Saved campaigns</h3><div id="campaign-list"></div></article>
+      </section>
+
+      <section id="campaign-studio" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Path Seal · Campaign 01</p><h2>Draft, review, then activate tracking</h2></div>
+          <span class="mode-badge">Free rules mode</span>
+        </div>
+        <div class="panel-grid campaign-intake">
+          <form id="draft-form" class="panel form-grid">
+            <div class="full profile-summary">
+              <p class="eyebrow">Controlled product profile</p>
+              <strong>Path Seal</strong> · SVG Micro Eco<br />
+              Produced by Skald and Kreepy Productions · Campaign operated by Signal Drift
+            </div>
+            <label class="full">Operator access key
+              <input id="campaign-access-key" type="password" required autocomplete="off" aria-describedby="campaign-key-note" />
+              <span id="campaign-key-note" class="field-note">Held in this page only. Never saved to browser storage.</span>
+            </label>
+            <label class="full">Campaign objective
+              <textarea id="draft-objective" required minlength="10" maxlength="500" rows="5">Introduce Path Seal to CNC makers who want review-first SVG contour repair without losing the drawing's original intent.</textarea>
+            </label>
+            <button type="submit">Generate review drafts</button>
+          </form>
+          <article class="panel callout">
+            <p class="eyebrow">Safety boundary</p>
+            <h3>Nothing publishes here</h3>
+            <p>Generation creates inactive, opaque tracking links. Review both drafts before activating them.</p>
+            <p class="muted">Activation enables redirects and attribution only. It does not connect or post to Facebook or LinkedIn.</p>
+          </article>
+        </div>
+
+        <div id="draft-progress" class="panel" hidden>
+          <p class="muted">Generating controlled drafts…</p>
+        </div>
+        <div id="draft-results" hidden>
+          <div class="draft-grid">
+            <article class="panel draft-card">
+              <div class="draft-heading"><h3>Facebook draft</h3><span class="status-badge">Pending review</span></div>
+              <textarea id="facebook-draft" readonly rows="12"></textarea>
+              <p id="facebook-brief" class="muted"></p>
+              <button class="ghost copy-draft" type="button" data-copy="facebook-draft">Copy Facebook draft</button>
+            </article>
+            <article class="panel draft-card">
+              <div class="draft-heading"><h3>LinkedIn draft</h3><span class="status-badge">Pending review</span></div>
+              <textarea id="linkedin-draft" readonly rows="12"></textarea>
+              <p id="linkedin-brief" class="muted"></p>
+              <button class="ghost copy-draft" type="button" data-copy="linkedin-draft">Copy LinkedIn draft</button>
+            </article>
+          </div>
+          <article class="panel approval-panel">
+            <label class="approval-check"><input id="review-confirmed" type="checkbox" /> I reviewed both drafts and approve activating their tracking links.</label>
+            <button id="approve-campaign" type="button" disabled>Approve Campaign 01 tracking</button>
+            <p id="approval-status" class="muted">Pending human review. No links are active.</p>
+          </article>
+        </div>
       </section>
 
       <section id="events" class="view">

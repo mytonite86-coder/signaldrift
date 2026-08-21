@@ -121,6 +121,7 @@ export async function generatePathSealDrafts({ objective, selector, linkStore, p
       campaign: campaignId,
       source: channel,
       medium: "social",
+      status: "pending_review",
       destination: destinationFor(profile, channel, campaignId)
     });
     const trackingUrl = `${publicBaseUrl.replace(/\/$/, "")}/go/${record.id}`;
@@ -130,7 +131,7 @@ export async function generatePathSealDrafts({ objective, selector, linkStore, p
       imageBrief: selection[channel].image_brief.trim(),
       approvedClaimIds: selection[channel].claim_ids,
       trackingUrl,
-      status: "draft",
+      status: "pending_review",
       humanReviewRequired: true,
       publishableByThisEndpoint: false
     };

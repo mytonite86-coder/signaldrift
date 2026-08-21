@@ -28,5 +28,6 @@
 - [ ] Automation 0.2: signup welcome email
 - [ ] Automation 0.3: upload/no-subscription follow-up after two days
 - [ ] Product intake and reusable campaign asset generation
-- [ ] Approval-based delivery controls
+- [x] Path Seal Campaign 01 draft review and tracking-link approval proof
+- [ ] Approval-based delivery controls beyond tracking activation
 - [ ] Cross-product learning loop
